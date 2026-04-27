@@ -131,26 +131,24 @@ func appendH2ToNextProtos(ps []string) []string {
 	return append(ret, alpnProtoStrH2)
 }
 
-// NewTLS uses c to construct a TransportCredentials based on TLS.
 func NewTLS(c *tls.Config) TransportCredentials {
 	tc := &tlsCreds{cloneTLSConfig(c)}
 	tc.config.NextProtos = appendH2ToNextProtos(tc.config.NextProtos)
-	if len(c.Certificates) > 0 {
-		_, ok := c.Certificates[0].PrivateKey.(*sm2.PrivateKey)
-		if ok {
-			tc.config.GMUsed = true
-		}
-	} else {
-		if c.RootCAs != nil {
-			certs := c.RootCAs.GetCerts()
-			if len(certs) > 0 {
-				if _, ok := certs[0].PublicKey.(*sm2.PublicKey); ok {
-					tc.config.GMUsed = true
-				}
-			}
-			// tc.config.GMUsed = true
+	gmDetected := false
+	if len(c.Certificates) > 0 && c.Certificates[0].PrivateKey != nil {
+		if _, ok := c.Certificates[0].PrivateKey.(*sm2.PrivateKey); ok {
+			gmDetected = true
 		}
 	}
+	if !gmDetected && c.RootCAs != nil {
+		certs := c.RootCAs.GetCerts()
+		if len(certs) > 0 {
+			if _, ok := certs[0].PublicKey.(*sm2.PublicKey); ok {
+				gmDetected = true
+			}
+		}
+	}
+	tc.config.GMUsed = gmDetected
 	return tc
 }
 
